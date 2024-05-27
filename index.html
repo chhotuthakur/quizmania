@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Page</title>
+    <!-- <link href="https://stackpath.bootstrapcdn.com/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <style> -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+        <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+        }
+        .container-fluid {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .question-column, .timer-column {
+            height: 100%;
+            padding: 20px;
+        }
+        .question-timer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 5px;
+            display: inline-block;
+        }
+        .circle.default {
+            background-color: gray;
+        }
+        .circle.attempted {
+            background-color: green;
+        }
+        .circle.marked {
+            background-color: yellow;
+        }
+        .circle.missed {
+            background-color: red;
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row w-100">
+        <div class="col-9 question-column bg-light">
+            <div id="question-container">
+                <!-- Questions will be dynamically inserted here -->
+            </div>
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-secondary" id="reset-button">Reset</button>
+                <div>
+                    <button class="btn btn-warning" id="mark-later-button">Mark for Later</button>
+                    <button class="btn btn-success" id="save-button">Save & Next</button>
+                    <button class="btn btn-primary d-none" id="submit-button">Submit</button>
+                </div>
+            </div>
+        </div>
+        <div class="col-3 timer-column bg-white">
+            <div class="question-timer">
+                <div id="timer" class="mb-4">Time Left: 10:00</div>
+                <div id="question-status">
+                    <!-- 10 circles for 10 questions -->
+                    <div class="circle default"></div>
+                    <div class="circle default"></div>
+                    <div class="circle default"></div>
+                    <div class="circle default"></div>
+                    <div class="circle default"></div>
+                    <div class="circle default"></div>
+                    <div class="circle default"></div>
+                    <div class="circle default"></div>
+                    <div class="circle default"></div>
+                    <div class="circle default"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="submitModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Submit Quiz</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Do you want to submit the quiz?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirm-submit">Submit</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="scoreModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Quiz Result</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="score-result"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const questions = [
+        {question: "What is the capital of France?", options: ["Berlin", "Madrid", "Paris", "Rome"], correct: 2},
+        {question: "What is 2 + 2?", options: ["3", "4", "5", "6"], correct: 1},
+        {question: "Which planet is known as the Red Planet?", options: ["Earth", "Mars", "Jupiter", "Venus"], correct: 1},
+        {question: "Who wrote 'To Kill a Mockingbird'?", options: ["Harper Lee", "J.K. Rowling", "Ernest Hemingway", "F. Scott Fitzgerald"], correct: 0},
+        {question: "What is the largest ocean on Earth?", options: ["Atlantic", "Indian", "Arctic", "Pacific"], correct: 3},
+        {question: "What is the boiling point of water?", options: ["90°C", "100°C", "110°C", "120°C"], correct: 1},
+        {question: "Which country is known as the Land of the Rising Sun?", options: ["China", "South Korea", "Japan", "Thailand"], correct: 2},
+        {question: "What is the smallest prime number?", options: ["0", "1", "2", "3"], correct: 2},
+        {question: "Which element has the chemical symbol 'O'?", options: ["Oxygen", "Gold", "Silver", "Osmium"], correct: 0},
+        {question: "Who painted the Mona Lisa?", options: ["Vincent van Gogh", "Pablo Picasso", "Leonardo da Vinci", "Claude Monet"], correct: 2}
+    ];
+
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let userAnswers = [];
+
+    document.addEventListener('DOMContentLoaded', (event) => {
+        showQuestion();
+        startTimer();
+    });
+
+    function showQuestion() {
+        const questionContainer = document.getElementById('question-container');
+        const question = questions[currentQuestionIndex];
+        
+        questionContainer.innerHTML = `
+            <h5>Q. ${currentQuestionIndex + 1} ${question.question}</h5>
+            ${question.options.map((option, index) => `
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="question${currentQuestionIndex}" id="option${index}" value="${index}">
+                    <label class="form-check-label" for="option${index}">${option}</label>
+                </div>
+            `).join('')}
+        `;
+
+        document.getElementById('save-button').classList.toggle('d-none', currentQuestionIndex === questions.length - 1);
+        document.getElementById('submit-button').classList.toggle('d-none', currentQuestionIndex !== questions.length - 1);
+    }
+
+    document.getElementById('save-button').addEventListener('click', function() {
+        saveAnswer();
+        currentQuestionIndex++;
+        showQuestion();
+        updateCircleStatus('attempted');
+    });
+
+    document.getElementById('mark-later-button').addEventListener('click', function() {
+        updateCircleStatus('marked');
+    });
+
+    document.getElementById('reset-button').addEventListener('click', function() {
+        // Logic to reset the current question
+        let radios = document.querySelectorAll(`input[name="question${currentQuestionIndex}"]`);
+        radios.forEach(radio => radio.checked = false);
+    });
+
+    document.getElementById('submit-button').addEventListener('click', function() {
+        saveAnswer();
+        const submitModal = new bootstrap.Modal(document.getElementById('submitModal'));
+        submitModal.show();
+    });
+
+    document.getElementById('confirm-submit').addEventListener('click', function() {
+        const submitModal = bootstrap.Modal.getInstance(document.getElementById('submitModal'));
+        submitModal.hide();
+        showScoreCard();
+    });
+
+    function saveAnswer() {
+        const selectedOption = document.querySelector(`input[name="question${currentQuestionIndex}"]:checked`);
+        if (selectedOption) {
+            userAnswers[currentQuestionIndex] = parseInt(selectedOption.value);
+        } else {
+            userAnswers[currentQuestionIndex] = -1; // no answer selected
+        }
+    }
+
+    function updateCircleStatus(status) {
+        let circles = document.querySelectorAll('.circle');
+        circles[currentQuestionIndex].classList.remove('default');
+        circles[currentQuestionIndex].classList.add(status);
+    }
+
+    function showScoreCard() {
+        score = userAnswers.reduce((acc, answer, index) => {
+            if (answer === questions[index].correct) {
+                acc++;
+            }
+            return acc;
+        }, 0);
+
+        const percentage = (score / questions.length) * 100;
+        const result = percentage >= 35 ? 'Passed' : 'Failed';
+
+        const scoreResult = `
+            Right Answers: ${score}/${questions.length} <br>
+            Percentage: ${percentage.toFixed(2)}% <br>
+            Result: ${result}
+        `;
+
+        document.getElementById('score-result').innerHTML = scoreResult;
+        const scoreModal = new bootstrap.Modal(document.getElementById('scoreModal'));
+        scoreModal.show();
+    }
+
+    // Dummy timer function (10 minutes countdown)
+    let timerElement = document.getElementById('timer');
+    let timeLeft = 600; // 10 minutes in seconds
+    function startTimer() {
+        setInterval(function() {
+            if (timeLeft <= 0) {
+                clearInterval(this);
+                alert('Time is up!');
+                showScoreCard();
+            } else {
+                timeLeft--;
+                let minutes = Math.floor(timeLeft / 60);
+                let seconds = timeLeft % 60;
+                timerElement.textContent = `Time Left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            }
+        }, 1000);
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js" integrity="sha384-IQsoLXl5PILFhosVNubq5LC7Qb9DXgDA9i+tQ8Zj3iwWAwPtgFTxbJ8NT4GN1R8p" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js" integrity="sha384-cVKIPhGWiC2Al4u+LWgxfKTRIcfu0JTxR+EQDz/bgldoEyl4H0zUF0QKbrJ0EcQF" crossorigin="anonymous"></script>
+</body>
+</html>
